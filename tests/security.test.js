@@ -1,0 +1,15 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {webcrypto} from 'node:crypto';
+import {onRequest,validName} from '../functions/[[path]].js';
+globalThis.crypto??=webcrypto;
+const origin='https://file-shelf.pages.dev';
+const env={APP_ORIGIN:origin,ALLOWED_EMAILS:'allowed@example.com',DB:{prepare(){return{bind(){return this},first:async()=>null}}}};
+test('uploads and private listings require authentication',async()=>{for(const [path,method] of [['/api/upload','POST'],['/api/list','GET'],['/api/folders','POST']]){const r=await onRequest({request:new Request(origin+path,{method,headers:{Origin:origin}}),env});assert.equal(r.status,401);}});
+test('cross-origin mutations fail before accessing storage',async()=>{const r=await onRequest({request:new Request(origin+'/api/upload',{method:'POST',headers:{Origin:'https://other.example'}}),env});assert.equal(r.status,403);});
+test('removed users lose existing session access',async()=>{const removed={...env,DB:{prepare(){return{bind(){return this},first:async()=>({subject:'123',email:'removed@example.com'})}}}};const r=await onRequest({request:new Request(origin+'/api/list',{headers:{Cookie:'__Host-session=abc'}}),env:removed});assert.equal(r.status,401);});
+test('OAuth callback rejects missing or mismatched state',async()=>{const r=await onRequest({request:new Request(origin+'/auth/callback?code=fake&state=bad',{headers:{Cookie:'oauth_state=good; oauth_verifier=secret'}}),env});assert.equal(r.status,302);assert.equal(r.headers.get('location'),'/?error=signin');});
+test('public download requires no session and isolates active content',async()=>{const id='a'.repeat(64);const r=await onRequest({request:new Request(origin+'/f/'+id),env:{FILES:{get:async()=>({body:'<script>alert(1)</script>',size:25,httpEtag:'"abc"',customMetadata:{name:'test.html'}})}}});assert.equal(r.status,200);assert.equal(r.headers.get('content-type'),'application/octet-stream');assert.match(r.headers.get('content-disposition'),/^attachment/);assert.match(r.headers.get('content-security-policy'),/sandbox/);});
+test('folder ownership checked before upload',async()=>{const scoped={...env,DB:{prepare(sql){return{bind(){return this},first:async()=>sql.includes('sessions')?{subject:'123',email:'allowed@example.com'}:null}}}};const r=await onRequest({request:new Request(origin+'/api/upload?name=a.txt&folder=someone-elses',{method:'POST',headers:{Origin:origin,Cookie:'__Host-session=abc'},body:'data'}),env:scoped});assert.equal(r.status,404);});
+test('streamed uploads enforce size even with no Content-Length',async()=>{const scoped={...env,DB:{prepare(){return{bind(){return this},first:async()=>({subject:'123',email:'allowed@example.com'})}}}};const r=await onRequest({request:new Request(origin+'/api/upload?name=a.txt',{method:'POST',headers:{Origin:origin,Cookie:'__Host-session=abc'},body:new Uint8Array(25*1024*1024+1)}),env:scoped});assert.equal(r.status,413);});
+test('names reject traversal separators and control characters',()=>{for(const s of ['','../a','a\\b','a\n','a'.repeat(201)])assert.equal(validName(s),false);assert.equal(validName('Quarterly report.pdf'),true);});

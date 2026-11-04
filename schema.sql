@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, subject TEXT NOT NULL, email TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS session_expiry ON sessions(expires);
+CREATE TABLE IF NOT EXISTS folders (id TEXT PRIMARY KEY, owner TEXT NOT NULL, parent TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, created INTEGER NOT NULL, UNIQUE(owner,parent,name));
+CREATE INDEX IF NOT EXISTS folder_owner ON folders(owner,parent);
+CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, owner TEXT NOT NULL, folder TEXT NOT NULL DEFAULT '', name TEXT NOT NULL, size INTEGER NOT NULL, type TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS file_owner ON files(owner,folder);

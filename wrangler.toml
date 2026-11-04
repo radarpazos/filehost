@@ -1,0 +1,16 @@
+name = "file-shelf"
+pages_build_output_dir = "public"
+compatibility_date = "2026-11-04"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "file-shelf"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "file-shelf"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[vars]
+APP_ORIGIN = "https://file-shelf.pages.dev"
+ALLOWED_EMAILS = ""
